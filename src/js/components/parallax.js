@@ -7,7 +7,7 @@ function plugin(UIkit) {
     var { util } = UIkit;
     var { $, hyphenate } = util;
 
-    var supports3d = true;
+    var supports3d = 'transformOrigin' in document.documentElement.style;
 
     var props = {
         velocity: Number,
@@ -16,7 +16,7 @@ function plugin(UIkit) {
         media: String
     };
 
-    ['x','xp','y','yp','bg','bgp','rotate','scale','color','backgroundColor','borderColor','opacity','blur','hue','grayscale','invert','saturate','sepia'].forEach(prop => props[prop] = String);
+    ['x','xp','y','yp','bg','bgp','rotate','scale','color','backgroundColor','borderColor','opacity','blur','hue','grayscale','invert','saturate','sepia','fopacity'].forEach(prop => props[prop] = String);
 
     UIkit.component('parallax', {
 
@@ -29,16 +29,13 @@ function plugin(UIkit) {
             media: false
         },
 
-        init() {
-
-        },
-
         connected() {
 
             this.base   = this.target ? $(this.target) : this.$el;
             this.$$props = {};
 
             var reserved  = ['target','velocity','viewport','plugins','media'];
+            var start, end, dir, diff, startend;
 
             Object.keys(this.$props).forEach(prop => {
 
@@ -46,12 +43,7 @@ function plugin(UIkit) {
                     return;
                 }
 
-                var start;
-                var end;
-                var dir;
-                var diff;
-                var startend = String(this.$props[prop]).split(',');
-
+                startend = String(this.$props[prop]).split(',');
                 prop = hyphenate(prop);
 
                 if (prop.match(/color/i)) {
@@ -77,13 +69,13 @@ function plugin(UIkit) {
         methods: {
 
             percentageInViewport() {
-                var top     = this.base.offset().top;
-                var height  = this.base.outerHeight();
-                var wh      = window.innerHeight;
+
+                var top = this.base.offset().top;
+                var height = this.base.outerHeight();
+                var wh = window.innerHeight;
                 var scrolltop = $(window).scrollTop();
-                var distance;
-                var percentage;
-                var percent;
+
+                var distance, percentage, percent;
 
                 if (top > (scrolltop + wh)) {
                     percent = 0;
@@ -125,8 +117,8 @@ function plugin(UIkit) {
 
                 var css = {transform:'', filter:''};
                 var compercent = percent * (1 - (this.velocity - (this.velocity * percent)));
-                var opts;
-                var val;
+
+                var opts, val;
 
                 if (compercent < 0) compercent = 0;
                 if (compercent > 1) compercent = 1;
@@ -143,7 +135,7 @@ function plugin(UIkit) {
                         val = opts.start;
                     } else if(percent === 1) {
                         val = opts.end;
-                    } else if(opts.diff !== undefined) {
+                    } else if (opts.diff !== undefined) {
                         val = opts.start + (opts.diff * compercent * opts.dir);
                     }
 
@@ -175,12 +167,6 @@ function plugin(UIkit) {
 
                         // bg image
                         case 'bg':
-
-                            // don't move if image height is too small
-                            // if (this.$el.data('bgsize') && (this.$el.data('bgsize').h + val - window.innerHeight) < 0) {
-                            //     break;
-                            // }
-
                             css['background-position'] = `50% ${val}px`;
                             break;
                         case 'bgp':
@@ -191,7 +177,7 @@ function plugin(UIkit) {
                         case 'color':
                         case 'background-color':
                         case 'border-color':
-                            css[prop] = calcColor(opts.start, opts.end, compercent);
+                            css[prop] = calculateColor(parseColor(opts.start), parseColor(opts.end), compercent || 0);
                             break;
 
                         // CSS Filter
@@ -230,8 +216,7 @@ function plugin(UIkit) {
 
                 this.$el.css(css);
                 this._percent = compercent;
-            },
-
+            }
         },
 
         update: [
@@ -244,7 +229,7 @@ function plugin(UIkit) {
 
                         if (Number(this.media) && window.innerWidth < this.media) {
                             return;
-                        } else if(typeof(this.media) == 'string' && window.matchMedia(this.media).matches) {
+                        } else if (typeof(this.media) == 'string' && window.matchMedia(this.media).matches) {
                             return;
                         }
                     }
@@ -256,33 +241,25 @@ function plugin(UIkit) {
                     }
 
                     this.process(percent);
-
                 },
 
                 events: ['scroll', 'load', 'resize', 'orientationchange']
-
             }
-
         ]
-
     });
 
 }
 
 function initBgImageParallax(instance, prop, opts) {
+
     var img = new Image();
-    var url;
-    var element;
-    var size;
-    var check;
-    var ratio;
-    var width;
-    var height;
+    var element = instance.$el.css({backgroundSize: 'cover',  backgroundRepeat: 'no-repeat'});
+    var url = element.css('background-image').replace(/^url\(/g, '').replace(/\)$/g, '').replace(/("|')/g, '');
+    
+    var size, ratio, width, height;
 
-    element = instance.$el.css({backgroundSize: 'cover',  backgroundRepeat: 'no-repeat'});
-    url     = element.css('background-image').replace(/^url\(/g, '').replace(/\)$/g, '').replace(/("|')/g, '');
+    var check = () => {
 
-    check   = () => {
         var w = element.innerWidth();
         var h = element.innerHeight();
         var extra = (prop=='bg') ? opts.diff : (opts.diff/100) * h;
@@ -314,10 +291,6 @@ function initBgImageParallax(instance, prop, opts) {
         element.css({backgroundSize: (`${width}px ${height}px`)}).data('bgsize', {w:width,h:height});
     };
 
-    img.onerror = () => {
-        // image url doesn't exist
-    };
-
     img.onload = () => {
         size  = { w:img.width, h:img.height };
         ratio = img.width / img.height;
@@ -329,44 +302,6 @@ function initBgImageParallax(instance, prop, opts) {
     return true;
 }
 
-
-var colors = {
-    black: [0,0,0,1],
-    blue: [0,0,255,1],
-    brown: [165,42,42,1],
-    cyan: [0,255,255,1],
-    fuchsia: [255,0,255,1],
-    gold: [255,215,0,1],
-    green: [0,128,0,1],
-    indigo: [75,0,130,1],
-    khaki: [240,230,140,1],
-    lime: [0,255,0,1],
-    magenta: [255,0,255,1],
-    maroon: [128,0,0,1],
-    navy: [0,0,128,1],
-    olive: [128,128,0,1],
-    orange: [255,165,0,1],
-    pink: [255,192,203,1],
-    purple: [128,0,128,1],
-    violet: [128,0,128,1],
-    red: [255,0,0,1],
-    silver: [192,192,192,1],
-    white: [255,255,255,1],
-    yellow: [255,255,0,1],
-    transparent: [255,255,255,0]
-};
-
-function calcColor(start, end, pos) {
-    return calculateColor(parseColor(start), parseColor(end), pos || 0);
-}
-
-/**!
- * @preserve Color animation 1.6.0
- * http://www.bitstorm.org/jquery/color-animation/
- * Copyright 2011, 2013 Edwin Martin <edwin@bitstorm.org>
- * Released under the MIT and GPL licenses.
- */
-
 // Calculate an in-between color. Returns "#aabbcc"-like string.
 function calculateColor(begin, end, pos) {
     var color = `rgba(${parseInt((begin[0] + pos * (end[0] - begin[0])), 10)},${parseInt((begin[1] + pos * (end[1] - begin[1])), 10)},${parseInt((begin[2] + pos * (end[2] - begin[2])), 10)},${begin && end ? parseFloat(begin[3] + pos * (end[3] - begin[3])) : 1}`;
@@ -375,8 +310,8 @@ function calculateColor(begin, end, pos) {
 
 // Parse an CSS-syntax color. Outputs an array [r, g, b]
 function parseColor(color) {
-    var match;
-    var quadruplet;
+
+    var match, quadruplet;
 
     // Match #aabbcc
     if (match = /#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})/.exec(color)) {
@@ -391,8 +326,33 @@ function parseColor(color) {
         quadruplet = [parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10),parseFloat(match[4])];
     // No browser returns rgb(n%, n%, n%), so little reason to support this format.
     } else {
-        quadruplet = colors[color] || [255,255,255,0];
+        quadruplet = {
+            black: [0,0,0,1],
+            blue: [0,0,255,1],
+            brown: [165,42,42,1],
+            cyan: [0,255,255,1],
+            fuchsia: [255,0,255,1],
+            gold: [255,215,0,1],
+            green: [0,128,0,1],
+            indigo: [75,0,130,1],
+            khaki: [240,230,140,1],
+            lime: [0,255,0,1],
+            magenta: [255,0,255,1],
+            maroon: [128,0,0,1],
+            navy: [0,0,128,1],
+            olive: [128,128,0,1],
+            orange: [255,165,0,1],
+            pink: [255,192,203,1],
+            purple: [128,0,128,1],
+            violet: [128,0,128,1],
+            red: [255,0,0,1],
+            silver: [192,192,192,1],
+            white: [255,255,255,1],
+            yellow: [255,255,0,1],
+            transparent: [255,255,255,0]
+        }[color] || [255,255,255,0];
     }
+
     return quadruplet;
 }
 
