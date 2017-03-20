@@ -5,6 +5,7 @@
 ### Added
 
 - Add computed properties
+- Add offcanvas close button
 
 ### Changed
 
